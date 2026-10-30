@@ -6,6 +6,7 @@ resources/*
 # The board DTB is not a secret dump: CI needs it to append the same
 # qcom,msm-id/board-id the ABL accepts, so the whyred blob is tracked.
 !resources/whyred_dtb.bin
+!resources/lavender_dtb.bin
 .planning/
 # third-party/Apple sources fetched for reading
 research/

@@ -109,7 +109,8 @@ fi
 # not lost. Unset keeps the console on the panel.
 PANEL_NOCONSOLE="${PANEL_NOCONSOLE:-0}"
 [ "$PANEL_NOCONSOLE" = 1 ] && DISPLAY_ARGS="$DISPLAY_ARGS sweetfb_noconsole=1"
-CMDLINE="debug=0x14e serial=3 $DISPLAY_ARGS ${KPRINTF_SPAM}sweetfb_native=1 sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
+SERIAL_NUM=$([ "$BOARD_LC" = "lavender" ] && echo 1 || echo 3)
+CMDLINE="debug=0x14e serial=$SERIAL_NUM $DISPLAY_ARGS ${KPRINTF_SPAM}sweetfb_native=1 sweetcpufreq=0 sweetbattery=0 rd=$ROOTDEV -v keepsyms=1 $BOARD_LC $EXTRA_CMDLINE"
 
 # Ensure a minimal ramdisk.bin is always present
 if command -v cpio >/dev/null 2>&1; then
@@ -184,8 +185,9 @@ python3 ../tools/mkbootimg.py \
 # handed over as an "iOS root" image that booted the ramdisk probe because the
 # payload still said rd=md0.
 img_size=$(wc -c < out/shim-boot.img)
-if [ "$img_size" -gt 6291456 ]; then
-	echo "error: out/shim-boot.img is $img_size bytes; whyred's ABL limit is 6291456" >&2
+MAX_SIZE=$([ "$BOARD_LC" = "lavender" ] && echo 7340032 || echo 6291456)
+if [ "$img_size" -gt "$MAX_SIZE" ]; then
+	echo "error: out/shim-boot.img is $img_size bytes; $BOARD_LC's ABL limit is $MAX_SIZE" >&2
 	exit 1
 fi
 python3 ../tools/payload_cmdline.py --image out/shim-boot.img \
