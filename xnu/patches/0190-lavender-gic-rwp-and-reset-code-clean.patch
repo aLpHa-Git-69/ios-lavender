@@ -1,0 +1,75 @@
+diff --git a/osfmk/arm64/cpu.c b/osfmk/arm64/cpu.c
+index b082a10..31d42f0 100644
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -926,6 +926,15 @@ cpu_start(int cpu)
+ 		/* The reset stub loads these through physical addresses with caches off.
+ 		 * Use VA range cleans to PoC, including on coherent-I/O builds. */
+ 		extern uint8_t bootstrap_pagetables[BOOTSTRAP_TABLE_SIZE];
++		extern void sweet_secondary_entry(void), sweet_secondary_entry_end(void);
++		/* Clover ArmCpu.cpp::startCPU, b9ad635986998de400a7c1dec84f3e40a767e779,
++		 * cleans the MMU-off reset code before
++		 * PSCI CPU_ON. Use our own exact linker-label ranges, not its
++		 * iOS 17 fixed-size region. Existing 0065 data/table cleans stay. */
++		CleanPoC_DcacheRegion_Force((vm_offset_t)&LowResetVectorBase,
++		    (vm_offset_t)&LowResetVectorEnd - (vm_offset_t)&LowResetVectorBase);
++		CleanPoC_DcacheRegion_Force((vm_offset_t)&sweet_secondary_entry,
++		    (vm_offset_t)&sweet_secondary_entry_end - (vm_offset_t)&sweet_secondary_entry);
+ 		CleanPoC_DcacheRegion_Force((vm_offset_t)CpuDataEntries, sizeof(CpuDataEntries));
+ 		CleanPoC_DcacheRegion_Force((vm_offset_t)cpu_data_ptr, sizeof(cpu_data_t));
+ 		CleanPoC_DcacheRegion_Force((vm_offset_t)&ResetHandlerData, sizeof(ResetHandlerData));
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index 8b79ff0..b153ec7 100644
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -327,6 +327,8 @@ Lsweet_secondary_el1:
+ 	/* x0 is deliberately unused; reset_vector selects CPU data by MPIDR. */
+ 	msr		SPSel, #1
+ 	b		EXT(LowResetVectorBase)
++	.globl EXT(sweet_secondary_entry_end)
++LEXT(sweet_secondary_entry_end)
+ #endif /* SWEET */
+ 
+ 	.align 2
+diff --git a/pexpert/arm/pe_fiq.c b/pexpert/arm/pe_fiq.c
+index 83da6e0..d838fcf 100644
+--- a/pexpert/arm/pe_fiq.c
++++ b/pexpert/arm/pe_fiq.c
+@@ -45,6 +45,26 @@ _gic_write32(vm_offset_t addr, uint32_t value)
+ #define gicr_write32(offset, data) (_gic_write32(gicr_pe_base + (offset), (data)))
+ #define gicr_read64(offset) (_gic_read64(gicr_pe_base + (offset)))
+ 
++#if defined(SWEET)
++/* Clover ArmCpu::waitClear(), b9ad635986998de400a7c1dec84f3e40a767e779:
++ * a stuck distributor RWP bit must identify itself, not spin forever.
++ * Use Darwin 22's existing clock API and a one-second software bound, as for
++ * redistributor wakeup. IRQ acknowledge/EOI remains exclusively in sleh_irq. */
++static void
++gicd_wait_rwp(void)
++{
++	uint64_t deadline;
++	uint32_t ctlr;
++
++	nanoseconds_to_deadline(1000000000ULL, &deadline);
++	while ((ctlr = gicd_read32(GICD_CTLR)) & GICD_CTLR_RWP) {
++		if (mach_absolute_time() >= deadline) {
++			panic("%s: GICD_CTLR.RWP timed out (0x%08x)", __func__, ctlr);
++		}
++	}
++}
++#endif
++
+ static vm_offset_t
+ find_gicr_pe_base()
+ {
+@@ -186,9 +206,7 @@ pe_init_fiq()
+ 	uint32_t gicd_ctlr = gicd_read32(GICD_CTLR);
+ 	gicd_ctlr |= GICD_CTLR_ARE_NS | GICD_CTLR_ENABLEGRP1A | GICD_CTLR_ENABLEGRP1;
+ 	gicd_write32(GICD_CTLR, gicd_ctlr);
+-	while (gicd_read32(GICD_CTLR) & GICD_CTLR_RWP) {
+-		;
+-	}
++	gicd_wait_rwp();
+ 	__builtin_arm_wsr64("ICC_IGRPEN1_EL1", 1);
+ 	__builtin_arm_isb(ISB_SY);
+ #else

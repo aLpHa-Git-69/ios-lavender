@@ -31,6 +31,24 @@ for t in test_sdhci_mock test_gpt_parser test_log_ring; do
 	esac
 done
 
+echo "== current kernel SDHCI/GIC mocks (-Wall -Wextra -Werror) =="
+python3 tests/prepare_kernel_mock.py "$OUT/kernel-mock"
+for board in LAVENDER SANTONI; do
+	bin="$OUT/test_sdhci_current_$board"
+	"$CC" -O2 -Wall -Wextra -Werror -I"$OUT/kernel-mock" \
+		-D"ARM64_BOARD_CONFIG_$board=1" tests/test_sdhci_current.c -o "$bin"
+	case "$bin" in
+		/*) "$bin" ;;
+		*)  "./$bin" ;;
+	esac
+done
+"$CC" -O2 -Wall -Wextra -Werror -I"$OUT/kernel-mock" \
+	tests/test_gic_wait.c -o "$OUT/test_gic_wait"
+case "$OUT" in
+	/*) "$OUT/test_gic_wait" ;;
+	*)  "./$OUT/test_gic_wait" ;;
+esac
+
 echo "== unified diff structure (all xnu/patches) =="
 python3 tools/check_patch.py xnu/patches/*.patch > "$OUT/check_patch.log"
 tail -3 "$OUT/check_patch.log"
@@ -713,7 +731,7 @@ if t.index('ring write failed') > hdr:
 PY
 echo "ok   0178 labels the log area first and survives a header failure"
 
-echo "== SYNC: 0180 answers DKIOCSYNCHRONIZE instead of ENOTTY =="
+echo "== SYNC: 0180 introduces the journal barrier, 0189 verifies card cache state =="
 P180="xnu/patches/0180-sdhci-synchronize-cache.patch"
 python3 tools/check_patch.py "$P180" -q \
 	--added-contains 'bsd/dev/santoni_sdhci.c:case DKIOCSYNCHRONIZE:' \
@@ -722,9 +740,10 @@ python3 tools/check_patch.py "$P180" -q \
 # HFS calls VNOP_IOCTL(jdev, DKIOCSYNCHRONIZE) before it advances the
 # journal head. The driver fell through to "default: return ENOTTY", so every
 # checkpoint printed "jnl: b(2, 0): flushing fs disk buffer returned 0x19"
-# (0x19 is ENOTTY). The card cache is never enabled, so success is honest.
+# (0x19 is ENOTTY). The current implementation samples CACHE_CTRL and flushes
+# an enabled cache; the real functions and failure paths are tested above.
 grep -q 'DKIOCSYNCHRONIZE' xnu/patches/0030-sweet-ufs-writes.patch
-echo "ok   0180 turns the journal's cache barrier into a success"
+echo "ok   journal barrier interface present; current cache behavior tested above"
 
 echo "== LOG 0181: a ring write error retries instead of truncating =="
 P181="xnu/patches/0181-sdhci-log-flusher-retry.patch"

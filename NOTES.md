@@ -1,5 +1,136 @@
 # iOS 16 on lavender (Redmi Note 7, SDM660) / whyred (Redmi Note 5, SDM636) - working notes
 
+## Active iOS 16.5 integration (2026-11-07)
+
+- User selected the iOS **16.5** installation already flashed on userdata as
+  the target, then selected GitHub Actions and authorized commits/pushes of
+  the tested kernel changes to this fork. GitHub CLI is authenticated as the
+  fork owner. The installed version is user-reported; `SystemVersion.plist`
+  has not been read because ADB currently lists no connected device.
+- First native target: XNU 8796.141.3 / Darwin 22, `LAVENDER`, 16 KiB,
+  Gold affinity `0x100`, `cpus=1`, existing HFSX root through `emmcroot0`.
+  The hardware Gold/RAM probe is already PASS. Eight-core/4 KiB adaptation
+  follows stable kernel/storage/root bring-up.
+- Added `0189-lavender-sdhci-exact-pio-and-cache-state.patch`: SDCC v5
+  register layout preserved, exact per-dword FIFO readiness/delivery,
+  bounded stale-FIFO/recovery paths, corrected EXT_CSD structure byte 194,
+  observed CACHE_CTRL state, standard FLUSH_CACHE and DAT0/CMD13 barriers.
+  No Clover LBAs or logging/BCB destinations were imported.
+- Added `0190-lavender-gic-rwp-and-reset-code-clean.patch`: bounded GICD
+  RWP wait and exact reset-code cache publication before secondary PSCI
+  startup. Existing redistributor lookup, timer 19, SGI1 and IRQ ownership
+  remain the native Darwin 22 path.
+- Source proof: exact XNU `xnu-8796.141.3` at
+  `1b191cb58250d0705d8a51287127505aa4bc0789`, fork baseline `5c266d0`.
+  All 194 existing patch files through 0188 apply; 0189/0190 reverse/reapply
+  restores the relevant files byte-for-byte. Full host suite passes,
+  including 24 actual SDHCI functions compiled for v5/LAVENDER and v4/SANTONI
+  and three GIC wait cases. Proofs/logs are in the parent workspace's
+  `out/ios16-kernel-work/`. Full kernel compile/link and hardware root boot
+  are pending; local translation-unit checks lack SDK/export headers.
+- Workflow now selects LAVENDER on pushes to this branch, checks skipped
+  patches through 019x, and skips the Whyred-only legacy-image packer for
+  Lavender. The `xnu-kernel` artifact is the input to the UniXNU port's own
+  matching loader, ADT and RAM payload assembly.
+- Next: publish the reviewed changes and build the LAVENDER kernel in
+  Actions; implement Darwin 22 boot-args and Gold handoff in DarwinBoot,
+  measured payload reservations, and the matching ADT. No userdata/GPT
+  rewrite is part of this integration.
+
+## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
+
+- Active workspace: `/data/data/com.termux/files/home/lavender-unixnu`.
+- Hardware evidence: `IMG_20261107_020240_926.jpg` explicitly shows
+  `LAVENDER-PROBE: RESULT PASS (7 passed, 0 failed)`. The real payload
+  configuration and Stage-1 EFI entry are discovered; CPU 4 KiB support,
+  framebuffer, DarwinBoot protocol, payload execution/read-only access,
+  FDT HOB and live initrd reservation all pass.
+- Observed handoff: Silver MPIDR `0x0`, EL1, framebuffer `0x9d400000`
+  (1080 x 2340, stride 1080 pixels), FDT `0x85400000`, initrd
+  `0x84000000..0x84400000`. This phone executes temporary `fastboot boot`.
+- The copied-handoff candidate image is
+  `out/copied-handoff/payload/lavender-unixnu-stage1.img`, 5,791,744 bytes,
+  SHA-256 `93e5432770d08bbb0fda9dc5eddaaeeb68a77f75579c25ace01d50d7dd3d2ea4`.
+  All five build-artifact checksums pass locally. The photo does not measure
+  image identity; hardware evidence and candidate artifact identity are
+  separate in `out/copied-handoff/device-boot.json`.
+- Pinned source revisions: this repository `5c266d0532ac9fa6b4ba1d68c7844e2c57ce1048`,
+  UniXNU `10edc1efeeabc8c180b1a3ad9f96b7c8e36a385e`, DarwinBoot
+  `3c75734014cdab0acd9541e88057b7606ee7ae08`, Mu-Silicium
+  `8471e47f5248ebbffc2e6196b683204163efe155` with the workspace overlays.
+- No XNU kernel is included in Stage 1. The actual earlier Lavender kernel
+  has now been downloaded from run `40085821240`, artifact `12557441084`
+  through the artifact-ID nightly.link URL. ZIP SHA-256
+  `4342e548a392118cc4f9015de8eef212f33ec11b87b639c5f4b35fa1558e84b2`
+  matches GitHub's digest. The 17,336,784-byte `kernel.development.lavender`
+  matches its manifest, SHA-256
+  `06cc7407d47abfae429cbcbb165231dccbdee5228efc389fb91842cff2fa0435`.
+  It is arm64 MH_EXECUTE, XNU 8796.141.3 / Darwin 22.6.0, entry
+  `0xfffffe00074aa488`, 2 MiB allocation offset `0x4000`, no chained fixups.
+  Local inputs and review are under `out/kernel-inputs/`.
+- **Readiness image built; hardware PASS now photographed:**
+  `/data/data/com.termux/files/home/lavender-unixnu/out/kernel-readiness/lavender-unixnu-kernel-readiness.img`,
+  5,791,744 bytes, SHA-256
+  `f62f1e7aa123043dde0194b220bc2866abf10bc524182ffba04a920d35511d9d`.
+  Built by `python3 scripts/build-kernel-probe.py` on Termux Clang 21.1.8.
+  Twelve gap/alignment/stride/overflow tests pass, callback relocations zero,
+  EFI imports zero, LSE/RCpc hits zero; FAT and boot-image round trips pass.
+  Saved firmware-kernel bytes match exactly. The 8,192-byte probe uses the
+  known-supported 4 MiB FAT payload; no XNU kernel is included in this image.
+- The callback only wakes an initially OFF Gold CPU `0x100`, records its
+  MMFR0/MPIDR/EL/SCTLR and powers it off. Its physical code and mailbox pages
+  are released only after OFF is confirmed. It does not call UEFI or program
+  the GIC on Gold. The RAM test measures a live conventional-memory run at
+  2 MiB alignment plus the selected kernel's `0x4000` offset, budget 1 GiB.
+- Copying the image to `/storage/emulated/0/Download/` was denied. The image
+  remains saved at the workspace path above. The user subsequently supplied
+  `/storage/emulated/0/DCIM/Camera/AGC_20261107_095435409.jpg`, SHA-256
+  `75dd5a00cad418bfef4f486923fef72f906044acd2471ae5be40628ba83c9c82`.
+- **Observed on this Lavender phone:** `KERNEL-READY: PASS`, boot affinity
+  `0x0`, PSCI `0x10000` (1.0), Gold initial/final state `1` (OFF), CPU_ON
+  return `0`, acknowledgement `1`. Gold MIDR `0x51af8002`, raw MPIDR
+  `0x80000100` (affinity `0x100`), MMFR0 `0x101122` (16 KiB supported),
+  CurrentEL `4` (EL1), SCTLR `0xc00800` (MMU off). The screen explicitly
+  reports `GOLD 16 KiB + CPU_OFF PASS`.
+- **Observed RAM:** kernel alignment offset `0x4000`, largest aligned
+  conventional-memory run `0xa0004000..0xfeac0000`, `0x5eabc000` bytes =
+  1,588,314,112 bytes, about 1.48 GiB. Both `DarwinBoot 256 MiB map PASS`
+  and `Lavender 1 GiB map PASS` are visible. The probe has not loaded XNU.
+  Exact observations and evidence are in `out/kernel-readiness/device-boot.json`.
+- Next: adapt the 736-byte / 608-character
+  Darwin 22 boot-args ABI (current DarwinBoot is 1,152 / 1,024 bytes), Gold
+  kernel handoff, actual ADT and the firmware's 8 MiB payload-copy policy.
+  The older Lavender bring-up section below remains the source of those
+  historical kernel constraints; recent Whyred input results are not
+  observations on this Lavender phone.
+
+### Additional SDM660 reference supplied by the user
+
+- Reviewed `https://github.com/qine233/UniXNU-clover`, cloned read-only at
+  `../refs/UniXNU-clover`, commit `b9ad635986998de400a7c1dec84f3e40a767e779`.
+  This is Mi Pad 4 / SDM660, 4 KiB iPadOS 17.7.11 (`21H461`), with reported
+  eight-core timer/IPI operation, eMMC/APFS roots and launchd/daemon startup.
+  Its current README still reports a backboardd/desktop stall, touch NACKs
+  and no Adreno 512/Metal renderer.
+- Relevant shared resources match Lavender's own recovery DT: GICD/GICR
+  `0x17a00000/0x17b00000`, timer INTID 19, SDCC host `0x0c0c4000`, HC/power
+  IRQs 142/144. Its 1 GiB kernel ownership request fits our measured 1.48 GiB
+  aligned run. Useful sources are its `drivers/ArmCpu`, `drivers/CloverSdhci`,
+  `drivers/CloverBlock`, and ADT generation/entry-framebuffer work.
+- Lavender input facts newly read from the matching recovery DT, not guessed
+  from Whyred or Clover: QUP1 `0x0c175000`, SPI 95 / INTID 127, GPIO 2/3;
+  children `novatek@62` (`novatek,NVT-ts`) and `synaptics_tcm@20`
+  (`synaptics,tcm-i2c`). Those are DT candidates, not live controller
+  identification. Clover uses QUP3 `0x0c177000`, GPIO 10/11, INTID 129 and
+  Goodix/FocalTech candidates; transport helpers are reusable, chip protocol
+  and wiring are not a direct match.
+- Clover's retained storage/HID/display families are iPadOS 17 ABI inputs;
+  the reviewed Lavender kernel is Darwin 22. No OS-profile switch or Clover
+  binary integration has been made. Its hardcoded partition LBAs, 1200x1920
+  geometry, 4 GiB bank description and cache-partition payload workflow are
+  tablet inputs. The checked reference and comparison are recorded in the
+  workspace's `CLOVER-REFERENCE.md`.
+
 ## 0187/0188 (2026-10-29): the synaptics read does not address
 
 **0187 result (ring pulled 2026-10-29):** the DSX protocol from the vendor
