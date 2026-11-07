@@ -77,6 +77,22 @@
   Explicit missing inputs fail; selected product fields are retained and
   syscfg placeholders/old phandles are excluded. `test_mkadt_product.py`
   covers these cases and is run by the host suite.
+- Per the user's instruction, source is now published in separate account
+  repositories: `uefi-lavender` (`3b2e7d8`), `UniXNU` (`17aaf52`),
+  `DarwinBoot` (`6e8900c`), this kernel fork, and `UniXNU-lavender` for
+  board/build/probe files. The board pins component commits and owns image CI.
+- Board firmware run `42363317189` passed full FD build and the ISA audit.
+  Image run `42364915071` passed checked artifact downloads, iOS16.5 D22AP
+  product-tree decoding, FAT and Android-image round trips. The local public
+  test image is 22,577,152 bytes, SHA-256
+  `d83796db90cd2ada5ad14c66ba8a8ca901811147d9d9fd705daf92a3d42494e7`.
+  It selects Darwin22/16KiB/Gold0x100/cpus1 and read-only `emmcroot0`.
+- On the connected phone, root fallback Fastboot confirmed `product: lavender`.
+  Temporary `fastboot boot` sent the local image (`22048 KB`, `OKAY` 0.750 s)
+  and returned `Booting OKAY` 0.141 s, total 0.947 s. The host frontend warns
+  `termux-usb command not found` but the root USB transfer succeeded. No
+  partition flash was performed. Kernel/root/userland execution is not yet
+  observed: next is the user's photograph of the last visible screen.
 
 ## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
 
