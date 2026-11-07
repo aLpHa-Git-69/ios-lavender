@@ -3,7 +3,7 @@
 
 Only what the early boot path actually reads; MMIO addresses come from the
 lavender (Redmi Note 7, SDM660) and whyred (Redmi Note 5, SDM636) live FDTs.
-Usage:  mkadt.py OUT.adt [--board lavender|whyred] [--dump] [--qemu] [--native]
+Usage:  mkadt.py OUT.adt [--board lavender|whyred] [--product-adt APPLE.adt] [--qemu] [--native]
 """
 import hashlib, os, struct, sys
 
@@ -67,7 +67,7 @@ def d22ap_product(path=D22AP_ADT):
     root, _ = adt.parse(open(path, 'rb').read())
     for c in root.children:
         if dict((k, v) for k, f, v in c.props).get('name') == b'product\0':
-            return [(k, v) for k, v in c.props if not f and k not in ('name', 'AAPL,phandle')]
+            return [(k, v) for k, f, v in c.props if not f and k not in ('name', 'AAPL,phandle')]
     raise SystemExit(f'{path}: no /product node')
 
 u32 = lambda *v: struct.pack('<%dI' % len(v), *v)
@@ -82,7 +82,7 @@ def node(name, props=(), children=()):
     return n
 
 
-def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD):
+def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD, product_adt=None):
     """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ."""
     cfg = BOARDS[board]
     fb_w, fb_h, fb_stride = cfg['panel_w'], cfg['panel_h'], cfg['panel_w'] * 4
@@ -203,7 +203,9 @@ def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD):
         ('opposed-power-vol-buttons', u32(1)),
     ])
 
-    product_props = d22ap_product()
+    if product_adt is not None and not os.path.isfile(product_adt):
+        raise FileNotFoundError(f'product ADT does not exist: {product_adt}')
+    product_props = d22ap_product(product_adt) if product_adt is not None else d22ap_product()
     if product_props:
         product_props = [(k, cstr('sRGB') if k == 'artwork-display-gamut' else v) for k, v in product_props]
     product = [node('product', [ph()] + product_props)] if product_props else []
@@ -223,6 +225,7 @@ def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD):
 if __name__ == '__main__':
     args = sys.argv[1:]
     board = DEFAULT_BOARD
+    product_adt = None
     if '--board' in args:
         at = args.index('--board')
         if at + 1 >= len(args):
@@ -234,11 +237,18 @@ if __name__ == '__main__':
         print("mkadt.py: unknown board %r (want %s)" % (board, '/'.join(BOARDS)),
               file=sys.stderr)
         sys.exit(2)
+    if '--product-adt' in args:
+        at = args.index('--product-adt')
+        if at + 1 >= len(args):
+            print('mkadt.py: --product-adt needs a decoded Apple ADT path', file=sys.stderr)
+            sys.exit(2)
+        product_adt = args[at + 1]
+        del args[at:at + 2]
     if not args:
         print("Usage: mkadt.py OUT.adt [--board lavender|whyred] [--dump] [--qemu] [--native]",
               file=sys.stderr)
         sys.exit(1)
-    root = build(qemu='--qemu' in args, native='--native' in args, board=board)
+    root = build(qemu='--qemu' in args, native='--native' in args, board=board, product_adt=product_adt)
     blob = adt.serialize(root)
     out_path = args[0]
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)

@@ -65,6 +65,18 @@
   scripts are saved in the ignored CI sandbox. Full native kernel link and
   hardware boot/root-mount evidence are still pending; parent reviews and
   publishes the follow-up before the next Actions run.
+- Published `106424c`; Actions `42359466404` compiled and linked the
+  LAVENDER target successfully. Downloaded `xnu-kernel` into the parent
+  workspace's ignored `out/ios16-kernel/`; the kernel matches its manifest,
+  is plain arm64 MH_EXECUTE, 17,836,104 bytes, base `0xfffffe0007004000`,
+  entry `0xfffffe00074ba488`, no chained-fixup command, and contains the
+  driver-0189 marker. This is a build result; device/root boot is pending.
+- Added explicit `mkadt.py --product-adt` input for the selected iOS 16.5
+  Apple device tree. Its host fixture found and fixed a pre-existing wrong
+  tuple unpack in `d22ap_product` (ADT props are name/flag/value triples).
+  Explicit missing inputs fail; selected product fields are retained and
+  syscfg placeholders/old phandles are excluded. `test_mkadt_product.py`
+  covers these cases and is run by the host suite.
 
 ## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
 

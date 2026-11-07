@@ -59,6 +59,7 @@ case "$OUT" in
 esac
 
 echo "== unified diff structure (all xnu/patches) =="
+python3 tests/test_mkadt_product.py
 python3 tools/check_patch.py xnu/patches/*.patch > "$OUT/check_patch.log"
 tail -3 "$OUT/check_patch.log"
 
