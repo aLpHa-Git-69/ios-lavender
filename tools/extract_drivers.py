@@ -50,6 +50,10 @@ def patches():
 def extract(path, work, series):
     """Reconstruct one in-tree file by applying every patch that touches it."""
     work.mkdir(parents=True, exist_ok=True)
+    # A caller's TMPDIR may live under another Git checkout. Keep patch
+    # paths rooted in this fixture instead of inheriting that parent prefix.
+    if not (work / ".git").is_dir():
+        subprocess.run(["git", "init", "-q", str(work)], check=True)
     cmd = [
         "git", "apply",
         f"--include={path}",

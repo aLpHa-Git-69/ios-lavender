@@ -115,6 +115,26 @@
   The next photo must include bank/header lines and screen bottom: existing
   native white x0..63/y2300..2331 marks early entry; blue y2250..2265 marks
   post-MMU continuation. Actual corrected kernel/root execution is pending.
+- Corrected image photo `AGC_20261107_181125757.jpg` (SHA-256
+  `f77900080a0004ce25be0305247808802d9fcec093b73cf488992692d8b1bcb5`)
+  now proves native XNU execution: arm_init entered, topology/CPU/bootstrap
+  completed, pmap/arm_vm_init returned, framebuffer VA became live, kprintf
+  initialized, libpthread registered, and `SWEET CPU: cpu=0 entered initCPU
+  mpidr=0x100 EL1 IRQs=1` is visible. This confirms the bank fix progressed
+  beyond the previous green-only frame; root mount/userland is not yet shown.
+- The frame also reports `pe_arm_map_interrupt_controller: failed to find
+  the interrupt-controller`. Actual Darwin22 reader
+  `pexpert/arm/pe_identify_machine.c` searches
+  `SecureDTFindEntry("interrupt-controller", "master")`; the generator emitted
+  an empty FDT-style flag. `mkadt.py` now emits `master\0` while retaining
+  `/arm-io/gic`, whose path and four-u64 reg tuple `pe_init_fiq` also requires.
+- That PE map gate next requires `device_type=timer` and a two-u64 `reg`
+  tuple before `ml_init_timebase`. Added the real matching-FDT timer frame
+  `0x17920000/0x1000`, compatible `arm,armv7-timer-mem`, as a native-board
+  bus-relative node. ARM64 uses the architectural CNTV registers; no fictitious
+  timer peripheral or QEMU mapping was added. Regression tests validate both
+  native board encodings, discovery values, GIC64/timer ranges and rejection
+  of the previous empty property. This is an ADT change; no new kernel binary.
 
 ## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
 

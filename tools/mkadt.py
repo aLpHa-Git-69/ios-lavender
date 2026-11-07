@@ -19,6 +19,11 @@ SOC_BASE = 0x01000000
 # interrupt-controller@17a00000 (redistributor-stride 0x20000, 8 cores)
 GICD, GICD_SIZE = 0x17a00000, 0x10000
 GICR, GICR_SIZE = 0x17b00000, 0x100000
+# Memory-mapped architected timer frame in the matching Lavender FDT:
+# /soc/timer@17920000, compatible arm,armv7-timer-mem, reg <17920000 1000>.
+# Darwin 22's PE map gate requires a device_type=timer node even though its
+# ARM64 timebase uses CNTV system registers rather than programming this frame.
+TIMER_FRAME, TIMER_FRAME_SIZE = 0x17920000, 0x1000
 # Continuous splash simplefb left lit by Qualcomm ABL at the same physical
 # address on both boards.
 FB = 0x9d400000
@@ -146,11 +151,19 @@ def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD, product_adt=
     gic = node('gic', [
         ph(),
         ('compatible', cstr('arm,gic-v3')),
-        ('interrupt-controller', b''),
+        # pexpert/arm/pe_identify_machine.c::pe_arm_map_interrupt_controller
+        # finds this exact value; an FDT-style empty boolean does not match.
+        ('interrupt-controller', cstr('master')),
         ('#interrupt-cells', u32(3)),
         ('virtual-timer-intid', u32(QEMU_VTIMER_INTID if qemu else VTIMER_INTID)),
         ('reg', u64(gicd - SOC_BASE, GICD_SIZE, gicr - SOC_BASE, GICR_SIZE)),
     ])
+    timer_nodes = [] if qemu else [node('timer', [
+        ph(),
+        ('device_type', cstr('timer')),
+        ('compatible', cstr('arm,armv7-timer-mem')),
+        ('reg', u64(TIMER_FRAME - SOC_BASE, TIMER_FRAME_SIZE)),
+    ])]
     arm_io = node('arm-io', [
         ph(),
         ('device_type', cstr('sweet-io')),
@@ -158,7 +171,7 @@ def build(seed=None, qemu=False, native=False, board=DEFAULT_BOARD, product_adt=
         ('#address-cells', u32(2)),
         ('#size-cells', u32(2)),
         ('ranges', u64(0, SOC_BASE, 0x100000000 - SOC_BASE)),
-    ], [gic,
+    ], [gic, *timer_nodes,
         node('wdt', [ph(), ('no-pmu', u32(1))]),
         node('wlan', [
             ph(),
