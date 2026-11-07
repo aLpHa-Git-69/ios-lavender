@@ -93,6 +93,28 @@
   `termux-usb command not found` but the root USB transfer succeeded. No
   partition flash was performed. Kernel/root/userland execution is not yet
   observed: next is the user's photograph of the last visible screen.
+- First image photo `IMG_20261107_162235_595.jpg` (SHA-256
+  `bb3c3a386725b7a6e91d4387e8c2dfac5541d11fee5047e575d69a6155319a9f`)
+  shows the green loader handoff bar and Gold-ready logs, but no confirmed
+  kernel/root banner. Source/binary audit proved a 16 KiB bootstrap-bank
+  defect: VA `0xfffffe0007004000` and PA `0xa0004000` differ in their 32 MiB
+  block phase by 16 MiB, so high KVA translations resolve to the wrong RAM.
+- DarwinBoot fix `66b68e0`, pinned by UniXNU `afca227`, rounds the virtual
+  bank down to `0xfffffe0006000000` and allocates a 32 MiB-aligned PA bank.
+  Segments, boot args and ADT use that same bank. At bank PA `0xa0000000`,
+  header is `0xa1004000`, entry `0xa14ba488`, args `0xa2984000`, tree
+  `0xa2988000`. Root host/UBSan/native-kernel regression: 562 checks pass,
+  including all copied segments, poisoned prefix/BSS, L2 translation phases
+  and exact-start/overflow/admission failure cases. Native kernel bytes are
+  unchanged; this is a loader fix.
+- Corrected firmware Actions `42371686365` and image Actions `42372587950`
+  pass. The local bank-fix image is 22,581,248 bytes, SHA-256
+  `c69e916793367023dae1a5d39af19fe823a01784e7185c12fa03842ed68f08cc`.
+  It was temporarily RAM-booted on confirmed `lavender`: download OKAY
+  (0.730 s), Booting OKAY (0.141 s), total 0.930 s. No partition flash.
+  The next photo must include bank/header lines and screen bottom: existing
+  native white x0..63/y2300..2331 marks early entry; blue y2250..2265 marks
+  post-MMU continuation. Actual corrected kernel/root execution is pending.
 
 ## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
 
