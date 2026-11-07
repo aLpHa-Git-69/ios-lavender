@@ -67,6 +67,10 @@ def prepare(out, source_tree):
     else:
         with tempfile.TemporaryDirectory(prefix="sdhci-source-", dir=out) as temporary:
             tree = Path(temporary)
+            # OUT may be inside the consuming checkout (as on Actions).
+            # Give git apply its own repository root instead of inheriting the
+            # parent checkout's prefix and silently filtering every patch path.
+            subprocess.run(["git", "init", "-q", str(tree)], check=True)
             series = sorted((ROOT / "xnu/patches").glob("*.patch"))
             subprocess.run(
                 ["git", "apply", "--include=bsd/dev/santoni_sdhci.c",

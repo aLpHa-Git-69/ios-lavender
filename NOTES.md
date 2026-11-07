@@ -36,6 +36,13 @@
   Actions; implement Darwin 22 boot-args and Gold handoff in DarwinBoot,
   measured payload reservations, and the matching ADT. No userdata/GPT
   rewrite is part of this integration.
+- Published `b87b528`; Actions `42348464387` correctly selected LAVENDER
+  but failed before compilation in `prepare_kernel_mock.py`: its temporary
+  directory was inside the checkout, so git apply inherited the parent root
+  and created no fixture source. Fixed by initializing the isolated temporary
+  repository. Optional KDK collection now ignores unmatched globs, and build
+  tree collection reports when the compiler never ran. This was a host-test
+  setup failure, not a kernel or hardware result.
 
 ## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
 
