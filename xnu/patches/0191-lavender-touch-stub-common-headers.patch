@@ -1,0 +1,21 @@
+diff --git a/bsd/dev/santoni_touch.c b/bsd/dev/santoni_touch.c
+index e147227..6eeb11e 100644
+--- a/bsd/dev/santoni_touch.c
++++ b/bsd/dev/santoni_touch.c
+@@ -44,11 +44,15 @@
+  * The probe is read-mostly on purpose: with no reset pulse it does not touch
+  * GPIO 66/67 at all, so the log still describes the state ABL handed over.
+  */
++/* The shared entry point also builds as an unsupported-board stub. */
++#include <sys/errno.h>
++
++int santoni_touch_probe(void);
++
+ #if defined(ARM64_BOARD_CONFIG_WHYRED)
+ 
+ #include <sys/param.h>
+ #include <sys/systm.h>
+-#include <sys/errno.h>
+ #include <kern/clock.h>
+ #include <machine/machine_routines.h>
+ #include <pexpert/pexpert.h>

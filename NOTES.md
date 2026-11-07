@@ -43,6 +43,28 @@
   repository. Optional KDK collection now ignores unmatched globs, and build
   tree collection reports when the compiler never ran. This was a host-test
   setup failure, not a kernel or hardware result.
+- Native run `42348926676` at `6665e5d` passed all host tests and the critical
+  skipped-patch guard, then failed compilation in `santoni_touch.c:932`:
+  `use of undeclared identifier 'ENXIO'`. The BSD errno include was inside
+  the WHYRED-only guard, while Lavender compiled the unsupported-board stub;
+  that stub also lacked a prior `santoni_touch_probe` prototype.
+- Follow-up `0191-lavender-touch-stub-common-headers.patch` moves the errno
+  include and shared prototype before the board guard. The external
+  `int(void)` ABI and `return ENXIO` behavior are retained. Published
+  0189/0190 patch identities remain the previously tested ones.
+- Downloaded matching `xnu-buildtree`, artifact `13564339545`, under
+  `out/ios16-kernel-work/ci-42348926676/` in the parent workspace. Replaying
+  the actual CI command with its generated headers reproduced the failure
+  before 0191 and compiled an arm64 Mach-O object after it. The object exports
+  `_santoni_touch_probe`, returns 6, and has no undefined symbols. WHYRED
+  control compilation also passed; existing warnings were retained.
+- 0191 passes real forward/reverse byte-identity checks against both the
+  actual failed CI source and XNU `1b191cb` plus published 0001–0190. Full
+  host tests pass, including a separately compiled complete LAVENDER touch
+  source TU, and all 197 patch-format checks pass. Logs/replay argv/proof
+  scripts are saved in the ignored CI sandbox. Full native kernel link and
+  hardware boot/root-mount evidence are still pending; parent reviews and
+  publishes the follow-up before the next Actions run.
 
 ## UniXNU migration checkpoint (2026-11-07 photos): UEFI and Gold/RAM probes pass
 

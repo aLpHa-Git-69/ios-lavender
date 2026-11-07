@@ -63,6 +63,7 @@ def prepare(out, source_tree):
     out.mkdir(parents=True, exist_ok=True)
     if source_tree:
         source = (source_tree / "bsd/dev/santoni_sdhci.c").read_text()
+        touch = (source_tree / "bsd/dev/santoni_touch.c").read_text()
         gic = (source_tree / "pexpert/arm/pe_fiq.c").read_text()
     else:
         with tempfile.TemporaryDirectory(prefix="sdhci-source-", dir=out) as temporary:
@@ -74,9 +75,11 @@ def prepare(out, source_tree):
             series = sorted((ROOT / "xnu/patches").glob("*.patch"))
             subprocess.run(
                 ["git", "apply", "--include=bsd/dev/santoni_sdhci.c",
+                 "--include=bsd/dev/santoni_touch.c",
                  "--whitespace=nowarn", *map(str, series)], cwd=tree, check=True,
             )
             source = (tree / "bsd/dev/santoni_sdhci.c").read_text()
+            touch = (tree / "bsd/dev/santoni_touch.c").read_text()
         sys.path.insert(0, str(ROOT / "tools"))
         from check_patch import parse
         files, errors = parse(ROOT / "xnu/patches/0190-lavender-gic-rwp-and-reset-code-clean.patch")
@@ -113,6 +116,9 @@ def prepare(out, source_tree):
     )
     _, body = function(gic, "gicd_wait_rwp")
     (out / "gic_wait_impl.h").write_text(body + "\n")
+    # Compile this COMPLETE source as a separate TU: a header included by the
+    # test harness must not hide a missing include in the Lavender stub.
+    (out / "santoni_touch.c").write_text(touch)
     print(f"ok   compiled mocks use {len(selected)} actual SDHCI functions and gicd_wait_rwp")
 
 
